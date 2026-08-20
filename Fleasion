@@ -1,18 +1,63 @@
+-- ============================================================
+-- FLEASIONSTRAPMOBILE + JUMP BOOST (FULL SCRIPT)
+-- ============================================================
+
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local Workspace = game.Workspace
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 -- ===== THEME =====
 local Theme = {
-	B = Color3.fromRGB(8, 8, 8),      -- background
-	S = Color3.fromRGB(18, 18, 18),   -- sidebar / panel
-	A = Color3.fromRGB(255, 255, 255),-- accent (white)
-	D = Color3.fromRGB(140, 140, 140),-- dim/description text
+	B = Color3.fromRGB(8, 8, 8),
+	S = Color3.fromRGB(18, 18, 18),
+	A = Color3.fromRGB(255, 255, 255),
+	D = Color3.fromRGB(140, 140, 140),
 }
 
+-- ============================================================
+-- JUMP BOOST (injected from Flags)
+-- ============================================================
+local jumpBoost = 0
+local isJumping = false
+
+local function ApplyJumpBoost(char)
+	if not char then return end
+	local hum = char:FindFirstChild("Humanoid")
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if not hum or not root then return end
+
+	hum.StateChanged:Connect(function(_, state)
+		if jumpBoost == 0 then return end
+		if state == Enum.HumanoidStateType.Jumping and not isJumping then
+			isJumping = true
+			task.wait(0.05)
+			if root then
+				root.Velocity += Vector3.new(0, jumpBoost, 0)
+			end
+			task.wait(0.3)
+			isJumping = false
+		end
+	end)
+end
+
+if player.Character then ApplyJumpBoost(player.Character) end
+player.CharacterAdded:Connect(ApplyJumpBoost)
+
+-- ============================================================
+-- FLAG CONSTANTS
+-- ============================================================
+local F_PATH = "ClientAppSettings.json"
+
+-- ============================================================
+-- SPLASH SCREEN GUI
+-- ============================================================
 local sg = Instance.new("ScreenGui")
 sg.Name = "FleasionSplash"
 sg.ResetOnSpawn = false
@@ -217,7 +262,6 @@ local function startTitleFloat()
 	titleFloating = true
 	task.spawn(function()
 		while titleFloating do
-			-- Bounded to the left-middle: x 3%-16%, y 22%-42%
 			local targetX = math.random(3, 16) / 100
 			local targetY = math.random(22, 42) / 100
 			local duration = math.random(30, 50) / 10
@@ -343,7 +387,7 @@ launchCard.MouseButton1Click:Connect(function()
 	closeUI()
 end)
 
-local switchTab -- forward declared, defined after sidebar buttons are built
+local switchTab
 
 local configCard = buildCard("Configure Settings", "Open Fast Flags, FPS, & more")
 configCard.MouseButton1Click:Connect(function()
@@ -421,6 +465,7 @@ local FlagsPage = createTabPage("Flags")
 local ScriptsPage = createTabPage("Scripts")
 local BallColorsPage = createTabPage("Ball Colors")
 local FontsPage = createTabPage("Fonts")
+local ConfigPage = createTabPage("Config")
 
 switchTab = function(name)
 	for tabName, page in pairs(tabPages) do
@@ -462,15 +507,52 @@ local function createSidebarButton(name)
 	return btn
 end
 
-for _, name in ipairs({"Fps", "Presets", "Flags", "Scripts", "Ball Colors", "Fonts"}) do
+for _, name in ipairs({"Fps", "Presets", "Flags", "Scripts", "Ball Colors", "Fonts", "Config"}) do
 	createSidebarButton(name)
 end
 
 ----------------------------------------------------------------
--- FPS PAGE CONTENT (textbox + apply)
+-- CONFIG PAGE (Jump Boost display + settings)
 ----------------------------------------------------------------
 
--- Wrapper centers the whole FPS block vertically within the page, matching Flags
+local configWrap = Instance.new("Frame", ConfigPage)
+configWrap.Size = UDim2.new(1, 0, 0, 200)
+configWrap.AnchorPoint = Vector2.new(0, 0.5)
+configWrap.Position = UDim2.new(0, 0, 0.5, 0)
+configWrap.BackgroundTransparency = 1
+
+local configLabel = Instance.new("TextLabel", configWrap)
+configLabel.Size = UDim2.new(1, -6, 0, 30)
+configLabel.Position = UDim2.new(0, 4, 0, 0)
+configLabel.BackgroundTransparency = 1
+configLabel.Text = "⚙️ Config"
+configLabel.TextColor3 = Color3.fromRGB(235, 235, 235)
+configLabel.TextSize = 18
+configLabel.Font = Enum.Font.GothamBold
+configLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local jumpBoostLabel = Instance.new("TextLabel", configWrap)
+jumpBoostLabel.Size = UDim2.new(1, -6, 0, 25)
+jumpBoostLabel.Position = UDim2.new(0, 4, 0, 40)
+jumpBoostLabel.BackgroundTransparency = 1
+jumpBoostLabel.Text = "Jump Boost: " .. tostring(jumpBoost)
+jumpBoostLabel.TextColor3 = Theme.A
+jumpBoostLabel.TextSize = 14
+jumpBoostLabel.Font = Enum.Font.Gotham
+jumpBoostLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Update jump boost label when injected
+local oldPerformInject = performInject
+performInject = function()
+	local result = oldPerformInject()
+	jumpBoostLabel.Text = "Jump Boost: " .. tostring(jumpBoost)
+	return result
+end
+
+----------------------------------------------------------------
+-- FPS PAGE
+----------------------------------------------------------------
+
 local fpsWrap = Instance.new("Frame", FpsPage)
 fpsWrap.Size = UDim2.new(1, 0, 0, 140)
 fpsWrap.AnchorPoint = Vector2.new(0, 0.5)
@@ -556,7 +638,6 @@ fpsApplyBtn.MouseButton1Click:Connect(function()
 		return
 	end
 
-	-- setfpscap is provided by most executors (incl. Delta). No reliable fallback exists.
 	local applied = false
 	if typeof(setfpscap) == "function" then
 		applied = pcall(setfpscap, value)
@@ -572,13 +653,9 @@ fpsApplyBtn.MouseButton1Click:Connect(function()
 end)
 
 ----------------------------------------------------------------
--- FLAGS PAGE CONTENT (JSON textbox + writefile + setfflag)
+-- FLAGS PAGE (with Jump Boost calculation, no jump text in injection)
 ----------------------------------------------------------------
 
-local HttpService = game:GetService("HttpService")
-local F_PATH = "ClientAppSettings.json"
-
--- Wrapper centers the whole flags block vertically within the page
 local flagsWrap = Instance.new("Frame", FlagsPage)
 flagsWrap.Size = UDim2.new(1, 0, 0, 260)
 flagsWrap.AnchorPoint = Vector2.new(0, 0.5)
@@ -663,9 +740,7 @@ flagsStatusLabel.Font = Enum.Font.Gotham
 flagsStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 flagsStatusLabel.TextWrapped = true
 
--- Shared inject routine: decodes the Flags textbox JSON, writes it to
--- ClientAppSettings.json, and calls setfflag per entry with the same
--- prefix-stripping as manual injection. Used by both the button and presets.
+-- PERFORM INJECT (with Jump Boost, no jump text displayed)
 local function performInject()
 	local raw = flagsBox.Text
 	if raw == "" then
@@ -708,15 +783,31 @@ local function performInject()
 
 	local count = 0
 	local anyLiveApplied = false
+	local boostValue = 0
+
 	for k, v in pairs(data) do
-		local c = k:gsub("^DFInt", ""):gsub("^DFFlag", ""):gsub("^FFlag", "")
+		local clean = k:gsub("^DFInt", ""):gsub("^DFFlag", ""):gsub("^FFlag", "")
 			:gsub("^FInt", ""):gsub("^DFString", ""):gsub("^FString", "")
 		if typeof(setfflag) == "function" then
-			local applied = pcall(setfflag, c, tostring(v))
+			local applied = pcall(setfflag, clean, tostring(v))
 			anyLiveApplied = anyLiveApplied or applied
 		end
 		count += 1
+
+		-- Jump Boost calculation (silent)
+		local lower = k:lower()
+		if lower:find("jump") then
+			boostValue = boostValue + 3
+		elseif lower:find("fluid") or lower:find("humanoid") then
+			boostValue = boostValue + 1
+		end
 	end
+
+	jumpBoost = boostValue
+	if jumpBoostLabel then
+		jumpBoostLabel.Text = "Jump Boost: " .. tostring(jumpBoost)
+	end
+
 	injectBtn.Text = "✔ INJECTED (" .. count .. ")"
 	task.delay(2.5, function() injectBtn.Text = "💉  EXECUTE CONFIG" end)
 
@@ -725,8 +816,7 @@ end
 
 injectBtn.MouseButton1Click:Connect(performInject)
 
--- Shared helper so preset toggles apply through the same pipeline as manual Fast Flag injection:
--- merges the flag into the Flags JSON box, then auto-injects it exactly like pressing EXECUTE CONFIG
+-- Helper for presets
 local function applyFastFlag(flagName, value)
 	local ok, existing = pcall(function()
 		if flagsBox.Text ~= "" then
@@ -744,14 +834,12 @@ local function applyFastFlag(flagName, value)
 end
 
 ----------------------------------------------------------------
--- PRESETS PAGE (toggles that auto-apply through the Flag injector)
+-- PRESETS PAGE (with lower settings buttons)
 ----------------------------------------------------------------
-
-local Lighting = game:GetService("Lighting")
-local Workspace = game.Workspace
 
 local presetsLabel = Instance.new("TextLabel", PresetsPage)
 presetsLabel.Size = UDim2.new(0.8, 0, 0, 30)
+presetsLabel.Position = UDim2.new(0, 0, 0, 20)
 presetsLabel.BackgroundTransparency = 1
 presetsLabel.Text = "Presets"
 presetsLabel.Font = Enum.Font.Code
@@ -760,8 +848,8 @@ presetsLabel.TextColor3 = Theme.A
 presetsLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local presetsList = Instance.new("Frame", PresetsPage)
-presetsList.Size = UDim2.new(0.85, 0, 1, -80)
-presetsList.Position = UDim2.new(0, 0, 0, 40)
+presetsList.Size = UDim2.new(0.85, 0, 1, -100)
+presetsList.Position = UDim2.new(0, 0, 0, 55)
 presetsList.BackgroundTransparency = 1
 
 local presetsListLayout = Instance.new("UIListLayout", presetsList)
@@ -778,11 +866,6 @@ presetsStatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 presetsStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 presetsStatusLabel.TextWrapped = true
 
--- Generic toggle row builder, reused by Ball Colors' style but standalone here
--- since presets are independent switches (not radio-style like ball colors).
--- onEnable/onDisable may return (success: boolean, message: string) — if they
--- return nothing, the row is assumed to have applied fine (e.g. pure Lighting/
--- Player property changes that don't need executor support to work).
 local function createPresetToggle(name, desc, onEnable, onDisable)
 	local row = Instance.new("TextButton", presetsList)
 	row.Size = UDim2.new(1, 0, 0, 40)
@@ -874,7 +957,7 @@ end, function()
 	applyFastFlag("FFlagDebugSkyGray", "False")
 end)
 
--- No Textures — flag + one-time ground/face texture strip (credit: lazerff2)
+-- No Textures
 local noTexturesActive = false
 local function stripGroundTextures()
 	local CHANGE_MATERIALS = true
@@ -981,21 +1064,38 @@ local function stripGroundTextures()
 end
 
 createPresetToggle("No Textures", "Skip mips + strip ground/face textures", function()
-	local ok = applyFastFlag("FIntDebugTextureManagerSkipMips", "8")
+	local ok = applyFastFlag(
+  "FIntRenderShadowIntensity": "0",
+  "FFlagDisablePostFx": "True",
+  "FIntTerrainArraySliceSize": "0",
+  "FFlagHandleAltEnterFullscreenManually": "False",
+  "FLogNetwork": "7",
+  "FIntDebugForceMSAASamples": "1",
+  "FFlagDebugGraphicsPreferD3D11": "True",
+  "FIntFullscreenTitleBarTriggerDelayMillis": "3600000",
+  "DFIntDebugFRMQualityLevelOverride": "1",
+  "FFlagNewLightAttenuation": "True",
+  "DFFlagDebugRenderForceTechnologyVoxel": "True",
+  "FIntRomarkStartWithGraphicQualityLevel": "1",
+  "DFIntTaskSchedulerTargetFps": "35",
+  "DFFlagDisableDPIScale": "True",
+  "DFFlagTextureQualityOverrideEnabled": "True",
+  "DFIntTextureQualityOverride": "0",
+  "DFIntPerformanceControlTextureQualityBestUtility": "-1",
+  "FIntDebugTextureManagerSkipMips": "8",
+  "DFIntConnectionMTUSize": "900",
+  "DFFlagDebugPauseVoxelizer": "True",)
 	if not noTexturesActive then
 		noTexturesActive = true
 		stripGroundTextures()
 	end
-	-- The texture strip itself is pure Roblox API and always runs regardless of
-	-- executor support, so this counts as applied even if the flag call failed.
 	return true, (not ok) and "flag not set, but ground textures were stripped" or nil
 end, function()
 	applyFastFlag("FIntDebugTextureManagerSkipMips", "0")
 	noTexturesActive = false
-	-- Note: destroyed decals/materials can't be restored without rejoining
 end)
 
--- Disable Shadows (GlobalShadows was removed from Roblox years ago — Technology is the real switch)
+-- Disable Shadows
 createPresetToggle("Disable Shadows", "Lighting.Technology = Compatibility", function()
 	local ok = pcall(function() Lighting.Technology = Enum.Technology.Compatibility end)
 	return ok
@@ -1003,7 +1103,7 @@ end, function()
 	pcall(function() Lighting.Technology = Enum.Technology.ShadowMap end)
 end)
 
--- Uncap Camera Zoom (client-side, handy alongside these visual presets)
+-- Uncap Camera Zoom
 createPresetToggle("Uncap Camera Zoom", "Removes max zoom distance", function()
 	local ok = pcall(function() player.CameraMaxZoomDistance = 5000 end)
 	return ok
@@ -1012,13 +1112,12 @@ end, function()
 end)
 
 ----------------------------------------------------------------
--- SCRIPTS PAGE (Controller Freeze / Controller Reset)
+-- SCRIPTS PAGE (with lower settings buttons)
 ----------------------------------------------------------------
-
-local UserInputService = game:GetService("UserInputService")
 
 local scriptsLabel = Instance.new("TextLabel", ScriptsPage)
 scriptsLabel.Size = UDim2.new(0.8, 0, 0, 30)
+scriptsLabel.Position = UDim2.new(0, 0, 0, 20)
 scriptsLabel.BackgroundTransparency = 1
 scriptsLabel.Text = "Scripts"
 scriptsLabel.Font = Enum.Font.Code
@@ -1027,8 +1126,8 @@ scriptsLabel.TextColor3 = Theme.A
 scriptsLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local scriptsList = Instance.new("Frame", ScriptsPage)
-scriptsList.Size = UDim2.new(0.85, 0, 1, -80)
-scriptsList.Position = UDim2.new(0, 0, 0, 40)
+scriptsList.Size = UDim2.new(0.85, 0, 1, -100)
+scriptsList.Position = UDim2.new(0, 0, 0, 55)
 scriptsList.BackgroundTransparency = 1
 
 local scriptsListLayout = Instance.new("UIListLayout", scriptsList)
@@ -1046,8 +1145,6 @@ scriptsStatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 scriptsStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
 scriptsStatusLabel.TextWrapped = true
 
--- Same toggle-row visual as Presets, but parented into scriptsList and
--- reporting to scriptsStatusLabel instead
 local function createScriptToggle(name, desc, onEnable, onDisable)
 	local row = Instance.new("TextButton", scriptsList)
 	row.Size = UDim2.new(1, 0, 0, 40)
@@ -1123,7 +1220,6 @@ local function createScriptToggle(name, desc, onEnable, onDisable)
 	return row
 end
 
--- Helper: freezes/unfreezes the local character (anchors every BasePart)
 local characterIsFrozen = false
 local function setCharacterFrozen(frozen)
 	characterIsFrozen = frozen
@@ -1143,11 +1239,6 @@ local function resetCharacter()
 		humanoid.Health = 0
 	end
 end
-
-----------------------------------------------------------------
--- On-screen touch buttons (right-middle of screen) so touchscreen
--- players without a controller can trigger the same actions
-----------------------------------------------------------------
 
 local touchGui = Instance.new("ScreenGui", playerGui)
 touchGui.Name = "FleasionTouchControls"
@@ -1188,8 +1279,6 @@ end
 local freezeTouchBtn = createTouchButton("Freeze", -40)
 local resetTouchBtn = createTouchButton("Reset", 40)
 
--- Controller Freeze — pressing Left Bumper (or the touch button) toggles
--- freeze on/off, it does NOT need to be held
 local freezeEnabled = false
 
 local function toggleFreeze()
@@ -1220,7 +1309,6 @@ end)
 UserInputService.InputBegan:Connect(onFreezeInputBegan)
 freezeTouchBtn.MouseButton1Click:Connect(toggleFreeze)
 
--- Controller Reset — press Y / Triangle (or the touch button) to reset the character
 local resetEnabled = false
 
 local function onResetInputBegan(input, gameProcessed)
@@ -1245,7 +1333,7 @@ resetTouchBtn.MouseButton1Click:Connect(function()
 end)
 
 ----------------------------------------------------------------
--- JERSEY CUSTOMIZATION (creds to hexz)
+-- JERSEY CUSTOMIZATION
 ----------------------------------------------------------------
 
 local jerseyConnection = nil
@@ -1262,8 +1350,8 @@ local function applyJerseyCustomization()
 		if character:WaitForChild("Uniform", 5) then
 			soundEvent:FireServer("Game", "Customization", "Toggle", "LeftGlove")
 			soundEvent:FireServer("Game", "Customization", "Toggle", "RightGlove")
-			soundEvent:FireServer("Game", "Customization", "Number", "0") -- number on jersey
-			soundEvent:FireServer("Game", "Customization", "Name", "abbused!") -- back-of-jersey name
+			soundEvent:FireServer("Game", "Customization", "Number", "0")
+			soundEvent:FireServer("Game", "Customization", "Name", "abbused!")
 		end
 	end)
 end
@@ -1280,7 +1368,7 @@ end, function()
 end)
 
 ----------------------------------------------------------------
--- GRAPHIC QUALITY SELECTOR (Scripts page)
+-- GRAPHIC QUALITY (lower position)
 ----------------------------------------------------------------
 
 local gfxLabel = Instance.new("TextLabel", scriptsList)
@@ -1338,9 +1426,6 @@ for _, option in ipairs(gfxOptions) do
 		TweenService:Create(stroke, TweenInfo.new(0.15), {Transparency = 0.1}):Play()
 		TweenService:Create(btn, TweenInfo.new(0.15), {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
 
-		-- Primary: settings().Rendering.QualityLevel is the real, immediate
-		-- client-side override — this is what actually forces quality to
-		-- change right now, rather than just saving a preference for later.
 		local renderOk = false
 		if RenderSettings then
 			renderOk = pcall(function()
@@ -1351,7 +1436,6 @@ for _, option in ipairs(gfxOptions) do
 			end
 		end
 
-		-- Secondary: also update the saved setting so it persists across sessions
 		local savedOk = pcall(function()
 			UserGameSettings.SavedQualityLevel = option.saved
 		end)
@@ -1368,12 +1452,12 @@ for _, option in ipairs(gfxOptions) do
 end
 
 ----------------------------------------------------------------
--- FONTS PAGE (global font changer — applies to all game UI text,
--- not just this menu)
+-- FONTS PAGE (lower position)
 ----------------------------------------------------------------
 
 local fontsLabel = Instance.new("TextLabel", FontsPage)
 fontsLabel.Size = UDim2.new(0.8, 0, 0, 30)
+fontsLabel.Position = UDim2.new(0, 0, 0, 20)
 fontsLabel.BackgroundTransparency = 1
 fontsLabel.Text = "Fonts"
 fontsLabel.Font = Enum.Font.Code
@@ -1383,7 +1467,7 @@ fontsLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local fontsHint = Instance.new("TextLabel", FontsPage)
 fontsHint.Size = UDim2.new(0.85, 0, 0, 16)
-fontsHint.Position = UDim2.new(0, 0, 0, 28)
+fontsHint.Position = UDim2.new(0, 0, 0, 48)
 fontsHint.BackgroundTransparency = 1
 fontsHint.Text = "Applies to all game text, not just this menu"
 fontsHint.Font = Enum.Font.Gotham
@@ -1392,8 +1476,8 @@ fontsHint.TextColor3 = Theme.D
 fontsHint.TextXAlignment = Enum.TextXAlignment.Left
 
 local fontsList = Instance.new("Frame", FontsPage)
-fontsList.Size = UDim2.new(0.85, 0, 1, -80)
-fontsList.Position = UDim2.new(0, 0, 0, 52)
+fontsList.Size = UDim2.new(0.85, 0, 1, -100)
+fontsList.Position = UDim2.new(0, 0, 0, 70)
 fontsList.BackgroundTransparency = 1
 
 local fontsListLayout = Instance.new("UIListLayout", fontsList)
@@ -1421,7 +1505,6 @@ local fontOptions = {
 	{name = "Code", font = Enum.Font.Code},
 }
 
--- Our own menu's GUIs are excluded so changing the global font doesn't break this menu's own layout
 local ownGuis = {sg, reopenGui, touchGui}
 local function belongsToOwnGui(inst)
 	for _, gui in ipairs(ownGuis) do
@@ -1448,7 +1531,6 @@ local function applyGlobalFont(fontEnum)
 	return count
 end
 
--- Keep applying the active font to any new text elements that appear later
 game.DescendantAdded:Connect(function(inst)
 	if not activeFont then return end
 	if belongsToOwnGui(inst) then return end
@@ -1504,10 +1586,8 @@ for _, option in ipairs(fontOptions) do
 end
 
 ----------------------------------------------------------------
--- BALL COLORS PAGE (toggles that force football(s) to a color)
+-- BALL COLORS PAGE (lower position)
 ----------------------------------------------------------------
-
-local Workspace = game.Workspace
 
 local function trySet(fn)
 	pcall(fn)
@@ -1522,7 +1602,6 @@ local function clearTextures(inst)
 	trySet(function() inst.MetalnessMap = "" end)
 end
 
--- Shared state: only one color can be "on" at a time since they all target the same balls
 local BallColorState = {enabled = false, generation = 0, color3 = nil, brickColor = nil}
 
 local function colorizePart(part, color3, brickColor)
@@ -1569,7 +1648,6 @@ local function processObject(obj, myGen)
 	end
 end
 
--- One persistent listener for newly added balls; only acts while a color is enabled
 Workspace.DescendantAdded:Connect(function(obj)
 	task.wait(0.05)
 	if not BallColorState.enabled then return end
@@ -1616,6 +1694,7 @@ local ballColorOptions = {
 
 local ballLabel = Instance.new("TextLabel", BallColorsPage)
 ballLabel.Size = UDim2.new(0.8, 0, 0, 30)
+ballLabel.Position = UDim2.new(0, 0, 0, 20)
 ballLabel.BackgroundTransparency = 1
 ballLabel.Text = "Ball Colors"
 ballLabel.Font = Enum.Font.Code
@@ -1624,8 +1703,8 @@ ballLabel.TextColor3 = Theme.A
 ballLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 local ballList = Instance.new("Frame", BallColorsPage)
-ballList.Size = UDim2.new(0.8, 0, 1, -50)
-ballList.Position = UDim2.new(0, 0, 0, 40)
+ballList.Size = UDim2.new(0.8, 0, 1, -80)
+ballList.Position = UDim2.new(0, 0, 0, 55)
 ballList.BackgroundTransparency = 1
 
 local ballListLayout = Instance.new("UIListLayout", ballList)
@@ -1685,7 +1764,6 @@ for _, option in ipairs(ballColorOptions) do
 	row.MouseButton1Click:Connect(function()
 		local alreadyOn = statePill.BackgroundColor3 == Theme.A
 
-		-- Turn every toggle off visually first (only one color active at a time)
 		for _, other in ipairs(ballToggleButtons) do
 			TweenService:Create(other.statePill, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(60, 60, 60)}):Play()
 			TweenService:Create(other.knob, TweenInfo.new(0.15), {Position = UDim2.new(0, 2, 0.5, -7)}):Play()
@@ -1755,7 +1833,6 @@ local function playSplash(holdTime)
 	wave2.Position = UDim2.new(-0.6, 0, -0.2, 0)
 end
 
--- Reopens straight to the card overlay (skips the splash)
 local function reopenUI()
 	local fadeOutInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 	local barTween = TweenService:Create(reopenBar, fadeOutInfo, {BackgroundTransparency = 1})
@@ -1763,7 +1840,6 @@ local function reopenUI()
 	barTween.Completed:Wait()
 	reopenGui.Enabled = false
 
-	-- Reset back to a clean pre-splash state, then replay the splash from scratch
 	main.Visible = false
 	cardOverlay.Visible = false
 	side.Visible = false
@@ -1778,3 +1854,8 @@ reopenBar.MouseButton1Click:Connect(reopenUI)
 playSplash(0.6)
 
 _G.PlayFleasionSplash = playSplash
+
+print("⚡ FleasionStrapMobile + Jump Boost loaded!")
+print("✅ Jump Boost auto-calculated from flags (silent)")
+print("✅ Config page added | Settings buttons centered")
+```
